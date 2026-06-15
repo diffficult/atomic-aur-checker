@@ -92,40 +92,56 @@ check_npm() {
     # 1. Check global npm packages
     if command -v npm &>/dev/null; then
         local global_pkgs
-        global_pkgs=$(npm list -g --depth=0 2>/dev/null | grep -v "(empty)" || true)
+        global_pkgs=$(npm list -g --depth=0 --parseable 2>/dev/null | while read -r p; do
+            basename "$p"
+        done | grep -v '^lib$' | grep -v '^node_modules$' || true)
         if [[ -n "$global_pkgs" ]]; then
-            while read -r pkg; do
-                local pat pkgbase
-                pkgbase=$(basename "$pkg")
-                pat=$(grep -Fxm1 "$pkgbase" "$tmpfile" || true)
+            while read -r installed; do
+                local pat
+                pat=$(grep -Fxm1 "$installed" "$tmpfile" || true)
                 if [[ -n "$pat" ]]; then
-                    found="${found}${pkgbase}\n"
+                    found="${found}${installed} (npm global)\n"
                 fi
-            done < <(echo "$list")
+            done < <(echo "$global_pkgs")
         fi
     fi
 
-    # 2. Check all node_modules directories on the system
-    while read -r dir; do
-        while read -r pkg; do
-            if [[ -d "$dir/$pkg" ]]; then
-                found="${found}${pkg} (node_modules: $dir/$pkg)\n"
-            fi
-        done < "$tmpfile"
-    done < <(find / -path /proc -prune -o -path /run -prune -o -path /tmp -prune -o -name "node_modules" -type d -print 2>/dev/null)
+    # 2. Check common local node_modules locations
+    for base in "$HOME/.npm-global" "$HOME/.local" "$HOME/Projects" "$HOME/work" /usr/lib/node_modules /opt; do
+        [[ -d "$base" ]] || continue
+        while read -r dir; do
+            while read -r pkg; do
+                if [[ -d "$dir/$pkg" ]]; then
+                    found="${found}${pkg} (node_modules: $dir/$pkg)\n"
+                fi
+            done < "$tmpfile"
+        done < <(find "$base" -name "node_modules" -type d 2>/dev/null)
+    done
 
-    # 3. Check package.json references
+    # 3. Full system scan (skips heavy dirs) with a soft timeout
+    if command -v timeout &>/dev/null; then
+        while read -r dir; do
+            while read -r pkg; do
+                if [[ -d "$dir/$pkg" ]]; then
+                    found="${found}${pkg} (node_modules: $dir/$pkg)\n"
+                fi
+            done < "$tmpfile"
+        done < <(timeout 30 find / -path /proc -prune -o -path /run -prune -o -path /tmp -prune -o -path /sys -prune -o -path /dev -prune -o -path /var/cache -prune -o -path /var/log -prune -o -path /home -prune -o -name "node_modules" -type d -print 2>/dev/null)
+    fi
+
+    # 4. Check package.json references (fast paths)
     while read -r json; do
         while read -r pkg; do
             if grep -q "\"$pkg\"" "$json" 2>/dev/null; then
                 found="${found}${pkg} (package.json: $json)\n"
             fi
         done < "$tmpfile"
-    done < <(find / -path /proc -prune -o -path /run -prune -o -path /tmp -prune -o -name "package.json" -type f -print 2>/dev/null)
+    done < <(find /home /opt /usr -path /proc -prune -o -path /run -prune -o -name "package.json" -type f -print 2>/dev/null)
 
     if [[ -n "$found" ]]; then
         echo "Installed/referenced packages found:"
-        echo -e "$found" | sort -u | sed 's/^/  /'
+        # Keep first occurrence per package, strip duplicate locations
+        echo -e "$found" | awk -F' ' '{if(!seen[$1]++) print}' | sed 's/^/  /'
     else
         echo "No matching npm packages found."
     fi
