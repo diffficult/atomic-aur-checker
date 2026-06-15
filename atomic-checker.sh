@@ -9,6 +9,10 @@
 
 set -euo pipefail
 
+FORCE_HISTORY_CHECK=false
+FORCE_CACHE_CHECK=false
+FORCE_BUILD_TRACE_CHECK=false
+
 # ---------------------------------------------------------------------------
 # Gum detection (optional, for pretty prompts)
 # ---------------------------------------------------------------------------
@@ -63,11 +67,16 @@ Check installed AUR and npm packages against vulnerability lists.
 
   -a, --aur FILE|LIST    AUR package list: path to .txt file or comma-separated names
   -n, --npm FILE|LIST    npm package list: path to .txt file or comma-separated names
+      --check-history     Run the optional pacman.log history check without prompting
+      --check-cache       Run the optional yay/paru cache check without prompting
+      --check-build-traces
+                         Run the optional build-trace check without prompting
   -h, --help             Show this help and exit
 
 Examples:
   $(basename "$0") -a aurvulnlist.txt -n npmvulnlist.txt
   $(basename "$0") -a fontfinder,qt5-3d -n atomic-lockfile,nextfile-js
+  $(basename "$0") -a aurvulnlist.txt --check-history --check-cache
 EOF
 }
 
@@ -80,6 +89,15 @@ parse_list() {
     else
         echo "$input" | tr ',' '\n' | sed 's/^ *//;s/ *$//' | grep -v '^$' | sort -u
     fi
+}
+
+join_existing_roots() {
+    local root joined=""
+    for root in "$@"; do
+        [[ -d "$root" ]] || continue
+        joined+="${root}"$'\n'
+    done
+    printf '%s' "$joined"
 }
 
 # ---------------------------------------------------------------------------
@@ -109,6 +127,197 @@ check_aur() {
     else
         success "No matching AUR packages installed."
     fi
+    rm -f "$tmpfile"
+    echo ""
+
+    check_pacman_history "$input"
+    check_aur_helper_cache "$input"
+    check_build_traces "$input"
+}
+
+check_pacman_history() {
+    local input="$1"
+    local list tmpfile pkg matches any_found=false
+    local log_file="/var/log/pacman.log"
+
+    [[ -r "$log_file" ]] || {
+        warn "Skipping pacman.log history check: $log_file is not readable."
+        echo ""
+        return 0
+    }
+
+    header "AUR History Check (pacman.log)"
+    info "This optional check looks for install, upgrade, reinstall, downgrade, or removal history."
+    info "Useful for packages that are no longer installed but were present recently."
+    echo ""
+
+    if ! $FORCE_HISTORY_CHECK && ! confirm "Check pacman.log for package history?"; then
+        info "pacman.log history check skipped by user."
+        echo ""
+        return 0
+    fi
+
+    list=$(parse_list "$input")
+    [[ -z "$list" ]] && { info "No AUR packages to check."; echo ""; return 0; }
+
+    tmpfile=$(mktemp)
+    echo "$list" > "$tmpfile"
+
+    while read -r pkg; do
+        matches=$(awk -v pkg="$pkg" '
+            index($0, "] installed " pkg " (") ||
+            index($0, "] upgraded " pkg " (") ||
+            index($0, "] reinstalled " pkg " (") ||
+            index($0, "] downgraded " pkg " (") ||
+            index($0, "] removed " pkg " (")
+        ' "$log_file" 2>/dev/null)
+
+        if [[ -n "$matches" ]]; then
+            any_found=true
+            echo ""
+            echo "  ── $pkg ──"
+            echo "$matches" | sed 's/^/    /'
+        fi
+    done < "$tmpfile"
+
+    if ! $any_found; then
+        success "No matching pacman.log history entries found."
+    fi
+
+    rm -f "$tmpfile"
+    echo ""
+}
+
+check_aur_helper_cache() {
+    local input="$1"
+    local list tmpfile pkg root matches any_found=false
+    local helper_roots
+
+    header "AUR Helper Cache Check"
+    info "This optional check looks for cached package directories and AUR metadata in yay/paru caches."
+    info "Useful to detect cloned or cached remnants even when a package is not installed."
+    echo ""
+
+    if ! $FORCE_CACHE_CHECK && ! confirm "Check yay/paru caches for package traces?"; then
+        info "AUR helper cache check skipped by user."
+        echo ""
+        return 0
+    fi
+
+    list=$(parse_list "$input")
+    [[ -z "$list" ]] && { info "No AUR packages to check."; echo ""; return 0; }
+
+    helper_roots=$(join_existing_roots \
+        "$HOME/.cache/yay" \
+        "$HOME/.cache/paru" \
+        /var/cache/yay \
+        /var/cache/paru
+    )
+
+    if [[ -z "$helper_roots" ]]; then
+        info "No yay/paru cache directories found."
+        echo ""
+        return 0
+    fi
+
+    tmpfile=$(mktemp)
+    echo "$list" > "$tmpfile"
+
+    while read -r pkg; do
+        matches=""
+        while read -r root; do
+            [[ -n "$root" ]] || continue
+            if [[ -d "$root/$pkg" ]]; then
+                matches+="cache dir: $root/$pkg"$'\n'
+            fi
+            while read -r meta; do
+                [[ -n "$meta" ]] || continue
+                matches+="metadata: $meta"$'\n'
+            done < <(find "$root" -path "*/$pkg/PKGBUILD" -o -path "*/$pkg/.SRCINFO" 2>/dev/null)
+        done < <(printf '%s\n' "$helper_roots")
+
+        if [[ -n "$matches" ]]; then
+            any_found=true
+            echo ""
+            echo "  ── $pkg ──"
+            echo "$matches" | awk 'NF && !seen[$0]++' | sed 's/^/    /'
+        fi
+    done < "$tmpfile"
+
+    if ! $any_found; then
+        success "No matching traces found in yay/paru caches."
+    fi
+
+    rm -f "$tmpfile"
+    echo ""
+}
+
+check_build_traces() {
+    local input="$1"
+    local list tmpfile pkg root matches any_found=false
+    local build_roots
+
+    header "AUR Build Trace Check"
+    info "This optional check looks for build leftovers like PKGBUILDs, .SRCINFO files, tarballs, or cached package artifacts."
+    info "Useful to detect local build traces even when nothing is installed now."
+    echo ""
+
+    if ! $FORCE_BUILD_TRACE_CHECK && ! confirm "Check build traces and cached artifacts?"; then
+        info "Build trace check skipped by user."
+        echo ""
+        return 0
+    fi
+
+    list=$(parse_list "$input")
+    [[ -z "$list" ]] && { info "No AUR packages to check."; echo ""; return 0; }
+
+    build_roots=$(join_existing_roots \
+        "$HOME/.cache" \
+        "$HOME/Downloads" \
+        "$HOME/Projects" \
+        "$HOME/dev" \
+        /tmp \
+        /var/tmp \
+        /var/cache/pacman/pkg
+    )
+
+    tmpfile=$(mktemp)
+    echo "$list" > "$tmpfile"
+
+    while read -r pkg; do
+        matches=""
+        while read -r root; do
+            [[ -n "$root" ]] || continue
+            if [[ -d "$root/$pkg" ]]; then
+                matches+="dir: $root/$pkg"$'\n'
+            fi
+            while read -r trace; do
+                [[ -n "$trace" ]] || continue
+                matches+="trace: $trace"$'\n'
+            done < <(find "$root" \( \
+                -path "*/$pkg" -o \
+                -path "*/$pkg/PKGBUILD" -o \
+                -path "*/$pkg/.SRCINFO" -o \
+                -name "$pkg*.pkg.tar*" -o \
+                -name "$pkg*.tar" -o \
+                -name "$pkg*.tar.gz" -o \
+                -name "$pkg*.tgz" -o \
+                -name "$pkg*.zip" \
+            \) 2>/dev/null)
+        done < <(printf '%s\n' "$build_roots")
+
+        if [[ -n "$matches" ]]; then
+            any_found=true
+            echo ""
+            echo "  ── $pkg ──"
+            echo "$matches" | awk 'NF && !seen[$0]++' | sed 's/^/    /'
+        fi
+    done < "$tmpfile"
+
+    if ! $any_found; then
+        success "No matching build traces or cached artifacts found."
+    fi
+
     rm -f "$tmpfile"
     echo ""
 }
@@ -274,6 +483,15 @@ main() {
                 shift
                 npm_input="${1:-}"
                 [[ -z "$npm_input" ]] && die "Option $1 requires a value."
+                ;;
+            --check-history)
+                FORCE_HISTORY_CHECK=true
+                ;;
+            --check-cache)
+                FORCE_CACHE_CHECK=true
+                ;;
+            --check-build-traces)
+                FORCE_BUILD_TRACE_CHECK=true
                 ;;
             -h|--help)
                 usage

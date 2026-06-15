@@ -25,15 +25,29 @@ These packages were identified as part of an investigation into potentially mali
 
 ## Features
 
-- **AUR check**: Compares installed pacman packages against a list
+- **AUR check**: Compares currently installed pacman packages against a list
+- **Optional AUR history check**: Scans `/var/log/pacman.log` for `installed`, `upgraded`, `reinstalled`, `downgraded`, and `removed` events
+- **Optional AUR helper cache check**: Looks for matching traces in `yay` and `paru` cache directories, including `PKGBUILD` and `.SRCINFO`
+- **Optional build trace check**: Looks for package directories, `PKGBUILD`, `.SRCINFO`, tarballs, and cached package artifacts in common build/cache paths
 - **npm check — two phases**:
   - **Phase 1 (Quick)**: Global npm installs, common `node_modules` paths, and `package.json` references
   - **Phase 2 (Deep)**: Optional full-filesystem scan for any `node_modules` directory
-- **Sudo integration**: Phase 2 asks for sudo to scan system-wide paths (e.g. `/root`, `/var`, `/opt`)
-- **Safe exclusions**: Always skips `/proc`, `/run`, `/sys`, `/dev`, `/tmp` to avoid kernel filesystem errors
+- **Sudo integration**: npm Phase 2 asks for sudo to scan system-wide paths (e.g. `/root`, `/var`, `/opt`) when needed
+- **Safe exclusions**: npm deep scan always skips `/proc`, `/run`, `/sys`, `/dev`, `/tmp` to avoid kernel filesystem errors
 - **Gum support**: If [charmbracelet/gum](https://github.com/charmbracelet/gum) is installed and a TTY is available, prompts are interactive and pretty; otherwise falls back to plain bash
 - **Flexible input**: Accepts either a `.txt` file or comma-separated package names
-- **Clean output**: Shows installed matches with metadata (version, install date, etc.)
+- **Clean output**: Separates current matches, historical matches, helper-cache traces, and build-trace findings
+
+## Scope
+
+For AUR package names, the script now distinguishes between different kinds of evidence:
+
+- **Current state**: package is installed right now
+- **History**: package appeared in `pacman.log` even if it is no longer installed
+- **Helper cache traces**: package remnants exist in `yay`/`paru` caches
+- **Build traces**: local build leftovers or cached artifacts still exist
+
+The script does **not** inspect filesystem snapshots or backup stores.
 
 ## Usage
 
@@ -46,6 +60,27 @@ These packages were identified as part of an investigation into potentially mali
 
 # Mixed (one file, one list)
 ./atomic-checker.sh -a aurvulnlist.txt -n atomic-lockfile,nextfile-js
+```
+
+When an AUR list is provided, the script first runs the current installed-package check.
+After that, it offers three optional follow-up checks with short explanations:
+
+1. `pacman.log` history scan
+2. `yay`/`paru` cache trace scan
+3. build trace and cached artifact scan
+
+These optional checks are intended for historical or forensic follow-up, not just current installed state.
+
+If you want to skip the prompts and force any of those checks, use these flags:
+
+- `--check-history`
+- `--check-cache`
+- `--check-build-traces`
+
+Example:
+
+```bash
+./atomic-checker.sh -a aurvulnlist.txt --check-history --check-cache --check-build-traces
 ```
 
 ## Input format
@@ -69,7 +104,7 @@ atomic-lockfile
 - `npm` (for npm global check)
 - `find` and `grep` (standard utilities)
 - `gum` (optional, for pretty interactive prompts)
-- `sudo` (optional, for deep system-wide npm scan)
+- `sudo` (optional, for deep system-wide npm scan when required by unreadable directories)
 
 ## License
 
