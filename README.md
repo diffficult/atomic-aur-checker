@@ -2,6 +2,27 @@
 
 Two-step package checker for AUR and npm packages. Validates installed packages on an Arch Linux system against vulnerability lists.
 
+## Why this exists
+
+Supply-chain attacks are increasingly targeting package ecosystems. In the Arch Linux AUR, orphaned packages are especially vulnerable because they have no active maintainer. A compromised orphaned package can be hijacked by a malicious actor to inject backdoors or malware into systems.
+
+**Source of compromised AUR orphaned packages:**
+
+- [Arch Linux Wiki — Compromised AUR Orphaned Packages](https://md.archlinux.org/s/SxbqukK6IA#)
+
+This is one of the resources you can use to populate your vulnerability list (`-a` flag).
+
+## npm packages of concern
+
+This tool was originally built to check for the following **npm packages** that were flagged as suspicious or malicious:
+
+- `atomic-lockfile`
+- `nextfile-js`
+- `js-digest`
+- `lockfile-js`
+
+These packages were identified as part of an investigation into potentially malicious npm packages that use generic names related to core Node.js concepts (lockfiles, file systems, digests) to trick developers into installing them. The concern is that they may contain backdoors, data exfiltration logic, or other malicious behavior. Always verify packages before installing them, especially when they have low download counts or no verifiable maintainer.
+
 ## Features
 
 - **AUR check**: Compares installed pacman packages against a list
@@ -48,6 +69,7 @@ atomic-lockfile
 - `npm` (for npm global check)
 - `find` and `grep` (standard utilities)
 - `gum` (optional, for pretty interactive prompts)
+- `sudo` (optional, for deep system-wide npm scan)
 
 ## License
 
