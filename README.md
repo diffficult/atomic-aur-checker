@@ -5,7 +5,12 @@ Two-step package checker for AUR and npm packages. Validates installed packages 
 ## Features
 
 - **AUR check**: Compares installed pacman packages against a list
-- **npm check**: Searches for npm packages in global installs, `node_modules`, and `package.json` references
+- **npm check — two phases**:
+  - **Phase 1 (Quick)**: Global npm installs, common `node_modules` paths, and `package.json` references
+  - **Phase 2 (Deep)**: Optional full-filesystem scan for any `node_modules` directory
+- **Sudo integration**: Phase 2 asks for sudo to scan system-wide paths (e.g. `/root`, `/var`, `/opt`)
+- **Safe exclusions**: Always skips `/proc`, `/run`, `/sys`, `/dev`, `/tmp` to avoid kernel filesystem errors
+- **Gum support**: If [charmbracelet/gum](https://github.com/charmbracelet/gum) is installed and a TTY is available, prompts are interactive and pretty; otherwise falls back to plain bash
 - **Flexible input**: Accepts either a `.txt` file or comma-separated package names
 - **Clean output**: Shows installed matches with metadata (version, install date, etc.)
 
@@ -42,6 +47,7 @@ atomic-lockfile
 - `pacman` (for AUR check)
 - `npm` (for npm global check)
 - `find` and `grep` (standard utilities)
+- `gum` (optional, for pretty interactive prompts)
 
 ## License
 
