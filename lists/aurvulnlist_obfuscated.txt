@@ -1,0 +1,54 @@
+(python-django-js-asset) Update dependencies (python-django-js-asset)
+(puppy-browser) Add missing deps (puppy-browser)
+(privacy-redirect-git) add deps
+(playhouse-git) rebuild
+(plasma6-applets-fancytasks) updpkgsums (plasma6-applets-fancytasks)
+(openlayers) upgpkg
+(npm-accel) add deps (npm-accel)
+(nodejs-vim-debugger) updpkgsums
+(nodejs-ws) Fix deps
+(nodejs-qunit) upgpkg (nodejs-qunit)
+(nodejs-sweet) Fix build
+(nodejs-pkg) Fix source
+(nodejs-nodemailer) Fix build (nodejs-nodemailer)
+(nodejs-jsfmt) sync
+(nodejs-json-to-js) Fix build (nodejs-json-to-js)
+(nodejs-jscs) add deps
+(nodejs-dicy-cli) Update source
+(nodejs-browser-sync) Fix deps (nodejs-browser-sync)
+(nitrogen-git) Fix install (nitrogen-git)
+(nem-wallet) Bump pkgrel
+(neovim-telescope-file-browser-git) add deps
+(nanocurrency) Update PKGBUILD
+(librewolf-extension-vimiumc-bin) Fix install
+(librewolf-extension-protonpass-bin) updpkgsums
+(kmorph) Update dependencies (kmorph)
+(kibana6) Fix build
+(just-js) updpkgsums
+(kcmlaptop) Update source (kcmlaptop)
+(iceweasel) Fix build
+(hudkit-wayland) Fix build (hudkit-wayland)
+(hack-browser-data-git) Add missing deps
+(gjs-git) sync
+(fontfinder) sync
+(firefox-floccus) sync (firefox-floccus)
+(firefox-esr-noscript) rebuild
+(felida-bin) Fix deps
+(edfbrowser-git) add deps
+(deno-git) Bump pkgrel
+(ctjs-bin) sync
+(concordium-desktop-wallet-testnet-bin) Fix build
+(cl-javascript) upgpkg
+(cl-parse-js) Fix source
+(claymore-miner-bin) rebuild
+(cl-parenscript) Fix install (cl-parenscript)
+(chia-git) Fix install
+(certbox-bin) Fix source
+(catalyst5-browser) Update source
+(btdex-git) updpkgsums (btdex-git)
+Fix build
+(algorand-devtools-bin) Fix source
+(beaker-browser-git) Update PKGBUILD (beaker-browser-git)
+(aura-browser) Update dependencies
+(amfora-favicons-git) updpkg (amfora-favicons-git)
+(atto-bin) upgpkg
